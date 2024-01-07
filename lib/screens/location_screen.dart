@@ -5,6 +5,8 @@ import 'dart:convert';
 import 'package:test_clima_flutter/services/weather.dart';
 import 'package:test_clima_flutter/screens/city_screen.dart';
 
+import '../services/networking.dart';
+
 class LocationScreen extends StatefulWidget {
   LocationScreen(this.data, {super.key});
   String data;
@@ -15,29 +17,36 @@ class LocationScreen extends StatefulWidget {
 }
 
 class _LocationScreenState extends State<LocationScreen> {
-  double temp=0;
-  String city='',info='', weathericon='', weathermessage='';
-  int id=0;
+  String city = '', icon = '', message = '';
+  int temperature = 0;
+  int id = 0;
 
   @override
   void initState() {
     super.initState();
-    info = widget.data;
-    updateUI();
+    updateUI(widget.data);
   }
 
-  void updateUI(){
-    temp = jsonDecode(info)['main']['temp'];
-    city = jsonDecode(info)['name'];
-    id = jsonDecode(info)['weather'][0]['id'];
-    print(city);
-    print(temp);
-    print(id);
+  void updateUI(dynamic data) {
+    setState(() {
+      if (data == null) {
+        city = 'city';
+        icon = 'Error';
+        message = 'Cannot find data';
+        temperature = 0;
+        return;
+      }
+      city = jsonDecode(data)['name'];
+      double temp = jsonDecode(data)['main']['temp'];
+      temperature = temp.toInt();
+      id = jsonDecode(data)['weather'][0]['id'];
 
-    WeatherModel weatherModel = new WeatherModel();
-    weathericon = weatherModel.getWeatherIcon(id);
-    weathermessage = weatherModel.getMessage(temp.toInt());
-
+      WeatherModel weatherModel = new WeatherModel();
+      icon = weatherModel.getWeatherIcon(id);
+      message = weatherModel.getMessage(temperature);
+      // for debugging
+      print("City: $city\nTemp: $temp\nID: $id");
+    });
 
   }
 
@@ -63,7 +72,10 @@ class _LocationScreenState extends State<LocationScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: <Widget>[
                   TextButton(
-                    onPressed: () {},
+                    onPressed: () async {
+                      var data = await Networking().getLocationData();
+                      updateUI(data);
+                    },
                     child: const Icon(
                       Icons.near_me,
                       size: 50.0,
@@ -75,8 +87,12 @@ class _LocationScreenState extends State<LocationScreen> {
                       newcity = await Navigator.push(context, MaterialPageRoute(builder: (context){
                         return CityScreen();
                       }));
-                      print(newcity);
-                    },
+                        if (newcity != null) {
+                          dynamic weather =
+                          await Networking().getCityData(newcity);
+                          updateUI(weather);
+                           }
+                        },
                     child: const Icon(
                       Icons.location_city,
                       size: 50.0,
@@ -88,12 +104,15 @@ class _LocationScreenState extends State<LocationScreen> {
                 padding: EdgeInsets.only(left: 15.0),
                 child: Row(
                   children: <Widget>[
-                    Text(
-                      temp.toStringAsFixed(0) + '°',
+                    Visibility(
+                      visible: temperature != 0,
+                         child: Text(
+                      temperature.toStringAsFixed(0) + '°',
                       style: kTempTextStyle,
                     ),
+                    ),
                     Text(
-                      weathericon,
+                      icon,
                       style: kConditionTextStyle,
                     ),
                   ],
@@ -102,7 +121,7 @@ class _LocationScreenState extends State<LocationScreen> {
               Padding(
                 padding: EdgeInsets.only(right: 15.0),
                 child: Text(
-                  "$weathermessage in $city!",
+                  "$message in $city!",
                   textAlign: TextAlign.right,
                   style: kMessageTextStyle,
                 ),
